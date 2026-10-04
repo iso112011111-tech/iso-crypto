@@ -1,0 +1,20 @@
+rules_version = '2';
+
+// iso-crypto: ผู้ใช้แต่ละคนอ่าน/เขียนได้เฉพาะเอกสารของตัวเอง ที่ users/{uid}
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['portfolio', 'watchlist', 'journal', 'updatedAt', 'profile'])
+        && request.resource.data.portfolio is list && request.resource.data.portfolio.size() <= 200
+        && request.resource.data.watchlist is list && request.resource.data.watchlist.size() <= 300
+        && request.resource.data.journal is list && request.resource.data.journal.size() <= 2000;
+    }
+    // ที่เหลือปิดทั้งหมด
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,36 +1,107 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# iso-crypto
 
-## Getting Started
+เครื่องมือวิเคราะห์คริปโตสำหรับคนไทย — ทุกเหรียญจาก 8 กระดาน (รวม Bitkub และ Binance TH) + DEX ทุกเชน ราคาเป็นเงินบาท ดีไซน์ดำ-แดงมินิมอล
 
-First, run the development server:
+## ทำอะไรได้บ้าง
+
+| หน้า | ใช้ทำอะไร |
+|---|---|
+| **ภาพรวม** `/` | ภาวะตลาด, Fear & Greed, ตาราง ~1,800 เหรียญ (ขึ้นแรง/ลงแรง/มาแรง/เหรียญเล็ก-ใหม่/Bitkub/Binance TH/★ โปรด), พอร์ตของฉัน |
+| **หน้าเหรียญ** `/coin/BTC` | กราฟ + แนวรับต้าน, คะแนน + บทวิเคราะห์, หลายกรอบเวลา (4H/1D/1W), แรงซื้อขาย, ฟิวเจอร์ส (Funding/OI/Long-Short), ราคาแต่ละกระดาน + ส่วนต่าง Bitkub / Binance TH |
+| **เหรียญ DEX** `/coin/dex:<chain>:<address>` | ค้นจากช่องค้นหาด้านบน (ชื่อหรือที่อยู่คอนแทรกต์) · คะแนนความปลอดภัย (Honeypot, ภาษี, สิทธิ์เจ้าของ, การกระจุกตัว, สภาพคล่อง, อายุพูล) · ประมาณราคาไหลตอนขาย |
+| **สแกนหาจังหวะ** `/scanner` | ให้คะแนนสูงสุด 150 เหรียญต่อชุด + แผนที่ความเสี่ยง |
+| **แบ่งไม้** `/allocator` | แบ่ง 40/40/20 จากแนวรับ-ต้านจริง, SL/TP, จำลอง 4 สถานการณ์, เพดานขาดทุน, บันทึกลงสมุดเทรด |
+| **สมุดเทรด** `/journal` | จดเทรด, กำไรขาดทุนสด, อัตราชนะ, R เฉลี่ย, บทเรียนจากสถิติของตัวเอง |
+| **ทดสอบ DCA** `/backtest` | ทุ่มก้อน vs DCA vs Smart DCA ด้วยราคาจริงย้อนหลัง |
+| **ความแม่นยำ** `/accuracy` | ทดสอบย้อนหลังว่าคะแนนของระบบทำนายได้จริงแค่ไหน (ไม่แอบดูอนาคต) |
+| **ผู้ช่วย AI** `/ai` | แชตถามอะไรก็ได้ AI ดึงภาวะตลาด ผลสแกน และข้อมูลเหรียญที่พิมพ์ชื่อมาใช้ตอบ · ประวัติคำตัดสินของ AI + ราคาตอนนี้ (ดูว่าแม่นจริงไหม) |
+| **AI วิเคราะห์เหรียญ** (ในหน้าเหรียญ) | สรุปภาพใหญ่ หลักฐานบวก/ลบ แผนเทรด ขนาดไม้ 3 สถานการณ์ จุดที่มุมมองผิด + คำตัดสิน เข้า/ทยอย/รอ/หลีกเลี่ยง |
+| **เข้าสู่ระบบ** `/login` · **บัญชี** `/account` | Google หรืออีเมล/รหัสผ่าน (Firebase) · ลืมรหัสผ่าน · จดจำฉัน · ข้อมูลพอร์ต/รายการโปรด/สมุดเทรดเก็บใน Firestore ซิงก์ทุกเครื่องแบบเรียลไทม์ · สำรอง/นำเข้าไฟล์ |
+
+## คะแนน (Setup Score) มาจากไหน
+
+ทดสอบปัจจัยต่าง ๆ กับ 40 เหรียญ ~15,000 จุดย้อนหลัง แบ่งข้อมูลครึ่งแรก/ครึ่งหลังเช็คว่าได้ผลทั้งสองช่วง แล้วเก็บเฉพาะที่ช่วยได้จริง:
+
+ความนิ่ง 25 · ความแข็งแรง (ใกล้จุดสูงสุด 90 วัน) 20 · ไม่ใช่มีดตก 20 · วอลุ่ม 15 · โมเมนตัม 10 · แนวโน้ม 10
+
+ผลทดสอบล่าสุด (Top 40, ถือ 30 วัน): คะแนน 75+ แตะเป้ากำไรก่อน SL **54%** เทียบสุ่มเข้า 45% · ปัจจัยที่ทดสอบแล้ว *ไม่* ช่วย (ใกล้แนวรับ, RSI โซนกลาง) ถูกตัดออกจากคะแนน · ดูผลสดได้ที่หน้า `/accuracy`
+
+> ผลในอดีตไม่รับประกันอนาคต · ไม่ใช่คำแนะนำการลงทุน
+
+## iso AI ทำงานอย่างไร
+
+- โมเดล: Gemini ผ่าน endpoint แบบ OpenAI-compatible (`AI_BASE_URL`) — โหมด "ลึก" ใช้ `gemini-3.1-pro-preview`, โหมด "เร็ว" ใช้ `gemini-3.8-flash` (แก้ได้ที่ `src/lib/ai.ts`)
+- ทุกครั้งที่ถาม ระบบส่งตัวเลขที่คำนวณแล้วให้ AI (ราคา คะแนน แนวรับต้าน หลายกรอบเวลา ฟิวเจอร์ส แรงซื้อขาย ความปลอดภัย DEX ภาวะตลาด ผลสแกน) พร้อม **สถิติความแม่นยำย้อนหลังของคะแนน** — AI ต้องยึดความมั่นใจกับสถิตินี้ ห้ามแต่งข้อมูล ทุกแผนต้องมี SL และขนาดไม้เสี่ยง ≤1–2%
+- คำตัดสินของ AI ทุกครั้งถูกบันทึกพร้อมราคา ณ ตอนนั้น เพื่อตรวจผลย้อนหลังที่หน้า `/ai`
+- คีย์อยู่ฝั่งเซิร์ฟเวอร์เท่านั้น · จำกัด 20 ครั้ง / 10 นาที / IP · ตั้ง `AI_REQUIRE_LOGIN=1` ตอนขึ้นออนไลน์
+
+## สมาชิก (Firebase)
+
+- ล็อกอินด้วย Google หรืออีเมล/รหัสผ่าน ผ่าน Firebase Authentication
+- ข้อมูลผู้ใช้เก็บที่ Firestore `users/{uid}` (เฉพาะเจ้าของอ่าน/เขียนได้ ตาม `firestore.rules`)
+- ไม่ล็อกอินก็ใช้งานได้ ข้อมูลอยู่ในเบราว์เซอร์ · ล็อกอินครั้งแรก ข้อมูลในเครื่องถูกย้ายขึ้นคลาวด์ให้อัตโนมัติ
+- AI ใช้ได้เฉพาะสมาชิก — เซิร์ฟเวอร์ตรวจ Firebase ID token ทุกครั้ง
+
+**ตั้งค่าใน Firebase Console (ทำครั้งเดียว):**
+1. Authentication → Sign-in method → เปิด **Google** และ **Email/Password**
+2. Firestore Database → Rules → วางเนื้อหาไฟล์ `firestore.rules` → Publish
+3. ตอนขึ้นเว็บจริง: Authentication → Settings → Authorized domains → เพิ่มโดเมนของคุณ
+
+## ดีไซน์
+
+ธีมราตรีแบบ domeright: ฟ้ากลางคืน ดาวกะพริบ ดาวตก ดวงจันทร์ลอย การ์ดกระจกฝ้าเรืองแสงตามเมาส์ ปุ่มไล่สีคราม-ม่วงมีประกายวิ่ง แถบราคาวิ่ง ราคากะพริบเขียว/แดงเมื่อขยับ · ติดตั้งเป็นแอปบนมือถือได้ (PWA) · ปิดแอนิเมชันอัตโนมัติถ้าเครื่องตั้งค่าลดการเคลื่อนไหว
+
+## รันในเครื่อง
+
+ต้องมี Node.js 20+
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd ~/Desktop/iso-crypto
+npm install
+npm run dev -- -p 3150
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+เปิด http://localhost:3150 — ไม่ต้องตั้งค่าอะไร ข้อมูลผู้ใช้เก็บในโฟลเดอร์ `.data/`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## ขึ้นออนไลน์ (Vercel)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. (ไม่บังคับ) สร้าง Redis ฟรีที่ [Upstash](https://console.upstash.com) สำหรับประวัติคำตัดสิน AI
+2. `npx vercel` (ล็อกอินบัญชี Vercel ของคุณ)
+3. ในหน้า Project → Settings → Environment Variables ใส่ค่าตาม `.env.example` (รวมคีย์ AI)
+4. `npx vercel --prod`
 
-## Learn More
+ข้อมูลสมาชิกอยู่บน Firebase จึงใช้ได้ทันทีบน Vercel · Upstash ไม่บังคับ (ใช้เก็บประวัติคำตัดสินของ AI)
 
-To learn more about Next.js, take a look at the following resources:
+## โครงสร้าง
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+src/
+├─ app/
+│  ├─ page.tsx · coin/[id] · scanner · allocator · journal · backtest · accuracy · account
+│  └─ api/
+│     ├─ markets, coins        รวมเหรียญทุกกระดาน (กรอง/ค้นหา/แบ่งหน้า)
+│     ├─ coin                  ข้อมูลครบชุดของเหรียญ (CEX หรือ DEX)
+│     ├─ dex/search            ค้นหาเหรียญ DEX
+│     ├─ scan, validate        สแกน / ทดสอบความแม่นยำ
+│     └─ ai/*                  AI วิเคราะห์ / แชต / ประวัติคำตัดสิน
+├─ lib/
+│  ├─ exchanges.ts             อะแดปเตอร์ 7 กระดาน (ticker + แท่งเทียน 4H/1D)
+│  ├─ market.ts                รวมเหรียญ, คัดเหรียญชื่อซ้ำ/ขยะ, เลือกแหล่งกราฟ
+│  ├─ dex.ts                   DexScreener + GeckoTerminal + GoPlus
+│  ├─ derivatives.ts           Funding / OI / Long-Short
+│  ├─ indicators.ts, analyzer.ts, signals.ts   อินดิเคเตอร์ คะแนน หลายกรอบเวลา แรงซื้อขาย
+│  ├─ validate.ts, backtest.ts, allocator.ts
+│  ├─ firebase.ts              เชื่อม Firebase ฝั่งเว็บ
+│  ├─ firebaseVerify.ts        ตรวจ Firebase ID token ฝั่งเซิร์ฟเวอร์ (สำหรับ AI)
+│  └─ store.ts                 ที่เก็บประวัติคำตัดสิน AI (ไฟล์ในเครื่อง / Upstash)
+└─ components/                 UI, กราฟ SVG, ช่องค้นหาเหรียญ
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## แหล่งข้อมูล (ฟรี ไม่ต้องใช้ API key)
 
-## Deploy on Vercel
+Binance, OKX, Bybit, Gate, MEXC, KuCoin, Bitkub, Binance TH (คู่ THB + รายชื่อเหรียญที่ซื้อได้ — คู่ USDT ใช้สมุดคำสั่งร่วมกับ Binance global จึงไม่นับวอลุ่มซ้ำ) · CoinGecko (ชื่อ/โลโก้/มาร์เก็ตแคป/อัตราแลกเปลี่ยน) · DexScreener · GeckoTerminal · GoPlus Security · alternative.me (Fear & Greed) · Binance/Bybit/OKX Futures
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## ข้อจำกัด
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- การไหลของเหรียญเข้า-ออกกระดานแบบ on-chain ต้องใช้ข้อมูลเสียเงิน จึงใช้แรงซื้อ-ขาย market (taker) + วอลุ่มผิดปกติแทน
+- ราคาไหลบน DEX เป็นค่าประมาณจากโมเดลพูลธรรมดา พูลแบบ concentrated อาจต่างไป
