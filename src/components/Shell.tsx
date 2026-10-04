@@ -12,6 +12,8 @@ import TickerTape from "./TickerTape";
 const NAV = [
   { href: "/", label: "ภาพรวม", icon: "M3 12 12 3l9 9M5 10v10h14V10" },
   { href: "/scanner", label: "สแกนหาจังหวะ", short: "สแกน", icon: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm10 17-5.2-5.2" },
+  { href: "/radar", label: "เรดาร์", icon: "M12 12l7-7M12 3a9 9 0 1 0 9 9M12 7a5 5 0 1 0 5 5" },
+  { href: "/alerts", label: "แจ้งเตือน", icon: "M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0" },
   { href: "/ai", label: "ผู้ช่วย AI", short: "AI", icon: "M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z" },
   { href: "/allocator", label: "แบ่งไม้", icon: "M4 20V10M10 20V4M16 20v-7M22 20H2" },
   { href: "/journal", label: "สมุดเทรด", short: "สมุด", icon: "M5 4h11l3 3v13H5zM9 9h6M9 13h6M9 17h3" },

@@ -123,3 +123,21 @@ export function supportResistance(candles: Candle[], atrValue: number, lookback 
 
   return { supports: supports.slice(0, 3), resistances: resistances.slice(0, 3) };
 }
+
+/**
+ * ใส่ราคาสดลงแท่งเทียนล่าสุด (แท่งวันนี้ที่ยังไม่ปิด) เพื่อให้การวิเคราะห์ใช้ราคาปัจจุบันจริง
+ * แม้ประวัติแท่งเทียนจะถูกแคชไว้ — ถ้าแท่งล่าสุดเก่ากว่ารอบเวลา จะเพิ่มแท่งใหม่ให้
+ */
+export function withLivePrice(candles: Candle[], price: number | null | undefined, periodMs = 86_400_000): Candle[] {
+  if (!price || !Number.isFinite(price) || candles.length === 0) return candles;
+  const last = candles[candles.length - 1];
+  const now = Date.now();
+  if (now < last.t + periodMs) {
+    return [...candles.slice(0, -1), { ...last, c: price, h: Math.max(last.h, price), l: Math.min(last.l, price) }];
+  }
+  if (now - last.t < 3 * periodMs) {
+    const t = last.t + periodMs * Math.floor((now - last.t) / periodMs);
+    return [...candles, { t, o: last.c, h: Math.max(last.c, price), l: Math.min(last.c, price), c: price, v: 0 }];
+  }
+  return candles;
+}

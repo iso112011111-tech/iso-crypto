@@ -9,6 +9,7 @@ import { Gauge } from "@/components/Charts";
 import { ExchangeBadges } from "@/components/CoinPicker";
 import Portfolio from "@/components/Portfolio";
 import LivePrice from "@/components/LivePrice";
+import AiBrief from "@/components/AiBrief";
 import { Card, CoinIcon, Disclaimer, ErrorBox, PageTitle, Pct, Segmented, Skeleton, Stat } from "@/components/ui";
 import { fmtCompactTHB } from "@/lib/format";
 import type { Analysis } from "@/lib/types";
@@ -59,7 +60,7 @@ export default function Dashboard() {
       ? { symbols: watchCex, limit: 200 }
       : { sort: t.sort, filter: t.filter, q: q || undefined, limit },
   );
-  const btc = useCoin("BTC");
+  const btc = useCoin("BTC", 60_000);
   const emptyWatch = tab === "watch" && watchCex.length === 0;
   const m = markets.data;
   const fng = m?.fearGreed;
@@ -110,6 +111,10 @@ export default function Dashboard() {
           value={m ? (m.totalMarketCapChange24h != null ? <Pct v={m.totalMarketCapChange24h} /> : "—") : <Skeleton className="h-7 w-20" />}
           sub={m && `USDT/THB ${m.usdThb.toFixed(2)}`}
         />
+      </div>
+
+      <div className="mt-4">
+        <AiBrief />
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">

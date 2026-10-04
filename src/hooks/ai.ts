@@ -8,6 +8,7 @@ export function useAiStream() {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [meta, setMeta] = useState<{ cachedAt: number | null; quotaLeft: number | null }>({ cachedAt: null, quotaLeft: null });
   const ctrl = useRef<AbortController | null>(null);
 
   const run = useCallback(async (url: string, body: unknown): Promise<string> => {
@@ -30,6 +31,9 @@ export function useAiStream() {
         const j = await res.json().catch(() => ({}));
         throw new Error(j.error ?? `HTTP ${res.status}`);
       }
+      const cachedAt = res.headers.get("X-Cached-At");
+      const quotaLeft = res.headers.get("X-Quota-Left");
+      setMeta({ cachedAt: cachedAt ? +cachedAt : null, quotaLeft: quotaLeft ? +quotaLeft : null });
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       for (;;) {
@@ -52,7 +56,7 @@ export function useAiStream() {
     setLoading(false);
   }, []);
 
-  return { text, loading, error, run, stop, setText };
+  return { text, loading, error, meta, run, stop, setText };
 }
 
 export function parseVerdict(text: string) {

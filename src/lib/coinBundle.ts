@@ -4,6 +4,7 @@ import { estimateSlippage, getDexCandles, getDexSafety, getDexToken } from "./de
 import { getDerivatives } from "./derivatives";
 import { flowOf, multiTimeframe } from "./signals";
 import { analyze, MIN_CANDLES } from "./analyzer";
+import { withLivePrice } from "./indicators";
 import type { Candle, CoinResponse } from "./types";
 
 const youngNotice = (name: string, n: number) =>
@@ -18,11 +19,13 @@ export async function getCoinBundle(id: string): Promise<CoinResponse> {
     if (id.startsWith("dex:")) {
       const [, chain, address] = id.split(":");
       const token = await getDexToken(chain, address, fx.rate);
-      const [daily, h4, safety] = await Promise.all([
+      const [rawDaily, rawH4, safety] = await Promise.all([
         getDexCandles(token, fx.rate, "1d"),
         getDexCandles(token, fx.rate, "4h"),
         getDexSafety(token, fx.rate),
       ]);
+      const daily = withLivePrice(rawDaily, token.price);
+      const h4 = withLivePrice(rawH4, token.price, 4 * 3_600_000);
       const enough = daily.length >= MIN_CANDLES;
       const body: CoinResponse = {
         id: token.id,
@@ -41,10 +44,13 @@ export async function getCoinBundle(id: string): Promise<CoinResponse> {
     }
 
     const symbol = id.toUpperCase();
-    const [{ candles, source, market }, h4] = await Promise.all([
+    const [{ candles: rawDaily, source, market }, rawH4] = await Promise.all([
       getCandles(symbol, 500, "1d"),
       getCandles(symbol, 300, "4h").then((r) => r.candles, () => [] as Candle[]),
     ]);
+    // ประวัติแท่งเทียนแคชไว้ได้ แต่แท่งล่าสุดต้องเป็นราคาสด → วิเคราะห์ใหม่ทุกครั้งที่ราคาเปลี่ยน
+    const candles = withLivePrice(rawDaily, market.price);
+    const h4 = withLivePrice(rawH4, market.price, 4 * 3_600_000);
     const enough = candles.length >= MIN_CANDLES;
     const analysis = enough ? analyze(symbol, candles) : null;
     const derivatives = await getDerivatives(symbol, analysis?.change7d ?? null).catch(() => null);

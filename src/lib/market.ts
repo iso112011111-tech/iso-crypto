@@ -96,7 +96,7 @@ type Universe = {
 };
 
 export function getUniverse(): Promise<Universe> {
-  return cached("universe", 20_000, buildUniverse);
+  return cached("universe", 10_000, buildUniverse); // ราคาไม่ช้ากว่า ~10–20 วิ
 }
 
 async function buildUniverse(): Promise<Universe> {
@@ -107,7 +107,7 @@ async function buildUniverse(): Promise<Universe> {
     getTrending(),
     binanceThInfo().catch(() => null),
     ...ids.map((ex) =>
-      cached(`tickers:${ex}`, 20_000, fetchTickers[ex]).then(
+      cached(`tickers:${ex}`, 8_000, fetchTickers[ex]).then(
         (v) => ({ ok: true as const, v }),
         () => ({ ok: false as const, v: [] as RawTicker[] }),
       ),

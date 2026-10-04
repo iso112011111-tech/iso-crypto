@@ -2,6 +2,7 @@ import "server-only";
 import { filterCoins, getCandles, getUniverse } from "./market";
 import { mapLimit } from "./http";
 import { analyze, MIN_CANDLES } from "./analyzer";
+import { withLivePrice } from "./indicators";
 import type { MarketCoin, ScanRow } from "./types";
 
 /** ชุดเหรียญที่ให้สแกน — จำกัดจำนวนเพื่อไม่ให้ยิง API กระดานหนักเกินไป */
@@ -28,7 +29,8 @@ export async function runScan(key: string) {
   const targets = set.pick(u.coins, u.usdThb);
 
   const results = await mapLimit(targets, 8, async (c): Promise<ScanRow | null> => {
-    const { candles, source } = await getCandles(c.symbol, 500);
+    const { candles: raw, source } = await getCandles(c.symbol, 500);
+    const candles = withLivePrice(raw, c.price); // ใช้ราคาล่าสุดจากตารางตลาด
     if (candles.length < MIN_CANDLES) return null;
     return { symbol: c.symbol, name: c.name, th: c.th, image: c.image, source, analysis: analyze(c.symbol, candles) };
   });

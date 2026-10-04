@@ -56,7 +56,7 @@ export const useCoin = (id: string | null, refreshMs = 0) =>
   useJSON<CoinResponse>(id ? `/api/coin?id=${encodeURIComponent(id)}` : null, refreshMs);
 
 export type ScanResult = { rows: ScanRow[]; skipped: number; set: string; label: string; scannedAt: number };
-export const useScan = (set: string) => useJSON<ScanResult>(`/api/scan?set=${set}`);
+export const useScan = (set: string) => useJSON<ScanResult>(`/api/scan?set=${set}`, 3 * 60_000); // สแกนใหม่ทุก 3 นาที
 
 /* ---------- รายชื่อเหรียญทั้งหมด (โหลดครั้งเดียวต่อการเปิดหน้า) ---------- */
 let coinListPromise: Promise<CoinLite[]> | null = null;
@@ -152,7 +152,7 @@ export function useMarkets(params: MarketParams = {}) {
   if (params.limit) qs.set("limit", String(params.limit));
   if (params.symbols) qs.set("symbols", params.symbols.join(","));
   const skip = params.symbols && params.symbols.length === 0;
-  const res = useJSON<MarketsResponse>(skip ? null : `/api/markets?${qs}`, 20_000);
+  const res = useJSON<MarketsResponse>(skip ? null : `/api/markets?${qs}`, 15_000);
 
   const binanceSymbols = useMemo(
     () => (res.data?.coins ?? []).filter((c) => c.exchanges.some((e) => e.ex === "binance")).map((c) => c.symbol),

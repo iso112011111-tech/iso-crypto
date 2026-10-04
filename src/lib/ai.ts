@@ -29,7 +29,15 @@ export async function streamChat(messages: ChatMessage[], model: ModelKey): Prom
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.AI_API_KEY}`, "Content-Type": "application/json" },
     // โมเดลตระกูลนี้นับ "ความคิด" รวมใน max_tokens ด้วย จึงต้องเผื่อเยอะ
-    body: JSON.stringify({ model: MODELS[model], messages, stream: true, max_tokens: 12000, temperature: 0.3 }),
+    // โหมดเร็วลดเวลาคิดของโมเดล (วัดแล้วประหยัด token ~35%) · โหมดลึกปล่อยให้คิดเต็มที่
+    body: JSON.stringify({
+      model: MODELS[model],
+      messages,
+      stream: true,
+      max_tokens: 12000,
+      temperature: 0.3,
+      ...(model === "fast" ? { reasoning_effort: "low" } : {}),
+    }),
     signal: AbortSignal.timeout(180_000),
   });
   if (!res.ok || !res.body) {
@@ -247,3 +255,83 @@ export async function listCalls(): Promise<AiCall[]> {
 }
 
 export type PortfolioInput = Holding[];
+
+/* ---------- ประหยัดเครดิต: แคชผลวิเคราะห์ + โควตาต่อวัน ---------- */
+
+export const CACHE_MS = 2 * 3600_000; // ผลวิเคราะห์เหรียญเดิมใช้ซ้ำได้ 2 ชม.
+export const DAILY_LIMIT = { coin: 15, chat: 40 } as const; // ต่อคนต่อวัน
+
+/** สภาพตลาด ณ ตอนที่ AI วิเคราะห์ — ถ้าเปลี่ยนมากพอ ผลเก่าถือว่าหมดอายุทันที */
+export type Snapshot = { price: number; score: number | null; tone: string | null };
+type CachedText = { text: string; at: number; snap?: Snapshot };
+
+export function snapshotChanged(old: Snapshot | undefined, now: Snapshot): string | null {
+  if (!old) return "ไม่มีข้อมูลเดิม";
+  if (old.price > 0 && Math.abs(now.price / old.price - 1) > 0.025) return `ราคาเปลี่ยน ${((now.price / old.price - 1) * 100).toFixed(1)}%`;
+  if (old.score != null && now.score != null && Math.abs(now.score - old.score) >= 8) return `คะแนนเปลี่ยน ${old.score} → ${now.score}`;
+  if (old.tone && now.tone && old.tone !== now.tone) return "สัญญาณเปลี่ยนกลุ่ม";
+  return null;
+}
+
+/** ผลวิเคราะห์เดิมใช้ซ้ำได้ถ้า: ยังไม่เกิน 2 ชม. และตลาดยังไม่เปลี่ยนมาก (ราคา ±2.5%, คะแนน ±8, กลุ่มสัญญาณเดิม) */
+export async function getCachedAnalysis(id: string, model: ModelKey, now: Snapshot): Promise<CachedText | null> {
+  const c = await getStore().get<CachedText>(`ai:coin:${id}:${model}`);
+  if (!c || Date.now() - c.at > CACHE_MS) return null;
+  return snapshotChanged(c.snap, now) ? null : c;
+}
+export async function setCachedAnalysis(id: string, model: ModelKey, text: string, snap: Snapshot) {
+  await getStore().set(`ai:coin:${id}:${model}`, { text, at: Date.now(), snap });
+}
+
+const bangkokDay = () => new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
+
+/** นับการใช้งานต่อวัน (เวลาไทย) คืนจำนวนที่เหลือ หรือ -1 ถ้าเต็มแล้ว */
+export async function consumeQuota(uid: string, kind: keyof typeof DAILY_LIMIT): Promise<number> {
+  const store = getStore();
+  const key = `ai:quota:${uid}:${kind}:${bangkokDay()}`;
+  const used = (await store.get<number>(key)) ?? 0;
+  if (used >= DAILY_LIMIT[kind]) return -1;
+  await store.set(key, used + 1);
+  return DAILY_LIMIT[kind] - used - 1;
+}
+
+/* ---------- สรุปตลาดประจำวันจาก AI (วันละ 2 รอบ ทุกคนเห็นเหมือนกัน ค่าใช้จ่ายคงที่) ---------- */
+
+/** เรียกโมเดลแบบไม่สตรีม คืนข้อความทั้งหมด */
+export async function completeChat(messages: ChatMessage[], model: ModelKey): Promise<string> {
+  const res = await fetch(`${process.env.AI_BASE_URL}/v1/chat/completions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${process.env.AI_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ model: MODELS[model], messages, max_tokens: 8000, temperature: 0.3, ...(model === "fast" ? { reasoning_effort: "low" } : {}) }),
+    signal: AbortSignal.timeout(120_000),
+  });
+  if (!res.ok) throw new Error(`AI ${res.status}`);
+  const d = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+  return d.choices?.[0]?.message?.content ?? "";
+}
+
+export const BRIEF_TASK = `เขียน "สรุปตลาดคริปโตวันนี้" สำหรับนักลงทุนไทย ไม่เกิน ~250 คำ ตามโครงนี้:
+
+## ภาวะตลาด
+(1–2 ประโยค: BTC, Fear & Greed, เงินไหลไปทางไหน)
+## กลยุทธ์วันนี้
+(รุก / ทยอย / ตั้งรับ / ถือเงินสด — พร้อมเหตุผลสั้น ๆ)
+## เหรียญน่าจับตา
+(เลือก 3 ตัวจาก topSetupsTop50 พร้อม โซนเข้า / SL / TP เป็นบาท)
+## สัญญาณเตือน
+(จาก futures: funding ร้อน/ติดลบแรง, OI พุ่ง, squeeze · เหรียญใหม่ที่ควรระวัง · ส่วนต่างราคาไทย-โลกที่ผิดปกติ ถ้ามี)
+
+ไม่ต้องใส่บรรทัด VERDICT`;
+
+/** ช่วงเวลาสรุป: เช้า 08:00 และเย็น 20:00 เวลาไทย */
+export function briefSlot(now = Date.now()) {
+  const th = new Date(now + 7 * 3600_000);
+  const h = th.getUTCHours();
+  const day = th.toISOString().slice(0, 10);
+  if (h >= 20) return `${day}-pm`;
+  if (h >= 8) return `${day}-am`;
+  const prev = new Date(now + 7 * 3600_000 - 86_400_000).toISOString().slice(0, 10);
+  return `${prev}-pm`;
+}
+
+export type Brief = { text: string; at: number; slot: string };

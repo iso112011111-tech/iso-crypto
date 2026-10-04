@@ -1,4 +1,4 @@
-import { SYSTEM_PROMPT, compactCoin, marketContext, mentionedCoins, scoreStats, streamChat, type ChatMessage, type ModelKey } from "@/lib/ai";
+import { SYSTEM_PROMPT, compactCoin, marketContext, mentionedCoins, scoreStats, streamChat, consumeQuota, type ChatMessage, type ModelKey } from "@/lib/ai";
 import { aiGuard, streamHeaders } from "@/lib/aiGuard";
 import { getCoinBundle } from "@/lib/coinBundle";
 import type { Holding } from "@/lib/types";
@@ -10,8 +10,8 @@ type Body = { messages?: { role: "user" | "assistant"; content: string }[]; mode
 
 /** แชตกับ iso AI: แนบภาวะตลาด ผลสแกน และข้อมูลเหรียญที่ถูกพูดถึงให้อัตโนมัติ */
 export async function POST(req: Request) {
-  const blocked = await aiGuard(req);
-  if (blocked) return blocked;
+  const guard = await aiGuard(req);
+  if (guard instanceof Response) return guard;
   const body = (await req.json().catch(() => ({}))) as Body;
   const history = (body.messages ?? [])
     .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
@@ -19,6 +19,9 @@ export async function POST(req: Request) {
     .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }));
   const last = history.filter((m) => m.role === "user").at(-1)?.content;
   if (!last) return Response.json({ error: "ไม่มีข้อความ" }, { status: 400 });
+
+  const left = await consumeQuota(guard.uid, "chat");
+  if (left < 0) return Response.json({ error: "คุยกับ AI ครบโควตาวันนี้แล้ว (40 ข้อความ/วัน) — พรุ่งนี้ใช้ได้ใหม่" }, { status: 429 });
 
   try {
     const ids = await mentionedCoins(last);
@@ -38,7 +41,7 @@ export async function POST(req: Request) {
       ...history,
     ];
     const stream = await streamChat(messages, body.model === "deep" ? "deep" : "fast");
-    return new Response(stream, { headers: { ...streamHeaders, "X-Coins": ids.join(",") } });
+    return new Response(stream, { headers: { ...streamHeaders, "X-Coins": ids.join(","), "X-Quota-Left": String(left) } });
   } catch (e) {
     return Response.json({ error: "AI ตอบไม่สำเร็จ", detail: String((e as Error).message ?? e) }, { status: 502 });
   }

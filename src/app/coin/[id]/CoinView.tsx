@@ -205,7 +205,7 @@ function DexCard({ d, usdThb }: { d: NonNullable<CoinResponse["dex"]>; usdThb: n
 
 export default function CoinView({ id }: { id: string }) {
   const [range, setRange] = useState(150);
-  const coin = useCoin(id, 60_000);
+  const coin = useCoin(id, 20_000); // วิเคราะห์ใหม่ด้วยราคาสดทุก 20 วิ
   const user = useUser();
   const d = coin.data;
   const a = d?.analysis;
@@ -243,6 +243,9 @@ export default function CoinView({ id }: { id: string }) {
           </button>
           {a && (
             <>
+              <ButtonLink href={`/alerts?add=${encodeURIComponent(d!.id)}`} variant="ghost">
+                ตั้งแจ้งเตือน
+              </ButtonLink>
               <ButtonLink href={`/journal?add=${encodeURIComponent(d!.id)}`} variant="ghost">
                 บันทึกเทรด
               </ButtonLink>

@@ -40,17 +40,20 @@ const DATA_DIR = path.join(process.cwd(), ".data");
 const DB_FILE = path.join(DATA_DIR, "db.json");
 
 function fileStore(): Store {
-  let cache: Record<string, unknown> | null = null;
+  // อ่านไฟล์ใหม่ทุกครั้ง (อิง mtime) เพราะตัวตั้งเวลาเบื้องหลังกับ API อาจเป็นคนละอินสแตนซ์ ห้ามถือข้อมูลเก่าไว้แล้วเขียนทับ
+  let cache: { mtime: number; db: Record<string, unknown> } | null = null;
   let queue = Promise.resolve();
 
-  const load = async () => {
-    if (cache) return cache;
+  const load = async (): Promise<Record<string, unknown>> => {
     try {
-      cache = JSON.parse(await fs.readFile(DB_FILE, "utf8"));
+      const st = await fs.stat(DB_FILE);
+      if (cache && cache.mtime === st.mtimeMs) return cache.db;
+      const db = JSON.parse(await fs.readFile(DB_FILE, "utf8"));
+      cache = { mtime: st.mtimeMs, db };
+      return db;
     } catch {
-      cache = {};
+      return {};
     }
-    return cache!;
   };
 
   return {
@@ -60,14 +63,14 @@ function fileStore(): Store {
       return (db[key] as T) ?? null;
     },
     set(key, value) {
-      // เขียนทีละครั้งแบบไฟล์ชั่วคราว → rename กันไฟล์พังถ้าโปรแกรมดับกลางคัน
+      // เขียนทีละครั้ง: อ่านล่าสุด → แก้ → ไฟล์ชั่วคราว → rename กันไฟล์พัง
       queue = queue.then(async () => {
-        const db = await load();
-        db[key] = value;
+        const db = { ...(await load()), [key]: value };
         await fs.mkdir(DATA_DIR, { recursive: true });
-        const tmp = `${DB_FILE}.${process.pid}.tmp`;
+        const tmp = `${DB_FILE}.${process.pid}.${Date.now()}.tmp`;
         await fs.writeFile(tmp, JSON.stringify(db));
         await fs.rename(tmp, DB_FILE);
+        cache = null;
       });
       return queue;
     },

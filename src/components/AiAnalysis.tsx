@@ -82,7 +82,13 @@ export default function AiAnalysis({ id, symbol }: { id: string; symbol: string 
               <Link href={`/ai?q=${encodeURIComponent(`ถามต่อเรื่อง ${symbol}: `)}`} className="hover:text-fg">
                 ถามต่อในแชต →
               </Link>
-              <span className="ml-auto">AI สรุปจากข้อมูลของระบบ ไม่ได้รู้อนาคต · คำตัดสินถูกบันทึกไว้ตรวจผลย้อนหลังที่หน้า ผู้ช่วย AI</span>
+              <span className="ml-auto">
+                {ai.meta.cachedAt
+                  ? `ผลวิเคราะห์เมื่อ ${new Date(ai.meta.cachedAt).toLocaleTimeString("th-TH", { timeStyle: "short" })} (ใช้ซ้ำได้ 2 ชม. ไม่เสียโควตา)`
+                  : ai.meta.quotaLeft != null
+                    ? `วิเคราะห์เชิงลึกเหลือวันนี้ ${ai.meta.quotaLeft} ครั้ง`
+                    : "AI สรุปจากข้อมูลของระบบ ไม่ได้รู้อนาคต"}
+              </span>
             </div>
           )}
         </>
