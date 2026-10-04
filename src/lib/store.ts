@@ -4,11 +4,12 @@ import path from "path";
 
 /**
  * ที่เก็บข้อมูลแบบ key → JSON
- * - ตั้ง UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN → ใช้ Upstash Redis (สำหรับ deploy บน Vercel)
- * - ไม่ตั้ง → เก็บในไฟล์ .data/db.json (สำหรับรันในเครื่อง/เซิร์ฟเวอร์ของตัวเอง)
+ * - มี Redis (UPSTASH_REDIS_REST_URL/TOKEN หรือ KV_REST_API_URL/TOKEN จาก Vercel Marketplace) → ใช้ Redis
+ * - รันในเครื่อง/เซิร์ฟเวอร์ของตัวเอง → ไฟล์ .data/db.json
+ * - บน Vercel แต่ยังไม่ต่อ Redis → เก็บในหน่วยความจำชั่วคราว (เว็บไม่พัง แต่แจ้งเตือน/โควตา/ประวัติ AI จะหายเมื่อเซิร์ฟเวอร์รีสตาร์ท)
  */
 export interface Store {
-  kind: "redis" | "file";
+  kind: "redis" | "file" | "memory";
   get<T>(key: string): Promise<T | null>;
   set(key: string, value: unknown): Promise<void>;
 }
@@ -77,12 +78,29 @@ function fileStore(): Store {
   };
 }
 
+function memoryStore(): Store {
+  const m = new Map<string, unknown>();
+  return {
+    kind: "memory",
+    async get<T>(key: string) {
+      return (m.get(key) as T) ?? null;
+    },
+    async set(key, value) {
+      m.set(key, value);
+    },
+  };
+}
+
 let instance: Store | null = null;
 
 export function getStore(): Store {
   if (instance) return instance;
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  instance = url && token ? redisStore(url, token) : fileStore();
+  const url = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
+  if (url && token) instance = redisStore(url, token);
+  else if (process.env.VERCEL) {
+    console.warn("[store] ยังไม่ได้ต่อ Redis บน Vercel — ใช้หน่วยความจำชั่วคราว ข้อมูลแจ้งเตือน/โควตาจะไม่ถาวร");
+    instance = memoryStore();
+  } else instance = fileStore();
   return instance;
 }

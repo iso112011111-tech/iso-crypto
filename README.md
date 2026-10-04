@@ -80,12 +80,30 @@ npm run dev -- -p 3150
 
 ## ขึ้นออนไลน์ (Vercel)
 
-1. (ไม่บังคับ) สร้าง Redis ฟรีที่ [Upstash](https://console.upstash.com) สำหรับประวัติคำตัดสิน AI
-2. `npx vercel` (ล็อกอินบัญชี Vercel ของคุณ)
-3. ในหน้า Project → Settings → Environment Variables ใส่ค่าตาม `.env.example` (รวมคีย์ AI)
-4. `npx vercel --prod`
+โปรเจกต์ตั้งค่าไว้พร้อมแล้ว (`vercel.json` ใช้เซิร์ฟเวอร์สิงคโปร์ `sin1` เพราะ Binance/Bybit/OKX บล็อก IP สหรัฐฯ ซึ่งเป็นค่าเริ่มต้นของ Vercel)
 
-ข้อมูลสมาชิกอยู่บน Firebase จึงใช้ได้ทันทีบน Vercel · Upstash ไม่บังคับ (ใช้เก็บประวัติคำตัดสินของ AI)
+**1. นำเข้าโปรเจกต์**
+- เข้า [vercel.com/new](https://vercel.com/new) → Import Git Repository → เลือก `iso112011111-tech/iso-crypto`
+- Framework: Next.js (ตรวจเจอเอง) · ไม่ต้องแก้ Build Command
+
+**2. ใส่ Environment Variables** (หน้า Import หรือ Settings → Environment Variables)
+- กด "Paste .env" แล้ววางเนื้อหาไฟล์ `.env.local` ในเครื่องได้เลย (ยกเว้นบรรทัด `LOCAL_PORT`)
+- ค่าที่ต้องมี: `AI_BASE_URL`, `AI_API_KEY`, `NEXT_PUBLIC_FIREBASE_*` (7 ค่า), `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `CRON_SECRET`
+
+**3. ต่อ Redis (จำเป็นสำหรับแจ้งเตือน/โควตา AI/ประวัติ AI)**
+- ในโปรเจกต์ Vercel → Storage → Create Database → **Upstash for Redis** (มีแพ็กเกจฟรี) → Connect
+- Vercel จะใส่ค่า `KV_REST_API_URL` / `KV_REST_API_TOKEN` ให้เอง แล้ว Redeploy 1 ครั้ง
+
+**4. Firebase** → Authentication → Settings → Authorized domains → เพิ่มโดเมน `xxxx.vercel.app` (และโดเมนจริงถ้ามี)
+
+**5. งานตรวจแจ้งเตือนทุกนาที** (Vercel ฟรีตั้ง cron ได้วันละครั้ง จึงใช้บริการภายนอกฟรี)
+- สมัคร [cron-job.org](https://cron-job.org) → Create cronjob
+- URL: `https://<โดเมนของคุณ>/api/cron` · ทุก 1 นาที
+- Advanced → Headers: `Authorization` = `Bearer <ค่า CRON_SECRET>`
+
+**6. ตรวจความพร้อม** เปิด `https://<โดเมน>/api/health`
+- ต้องได้ `"ok": true` · `config.store` ต้องเป็น `"redis"`
+- ถ้ามีกระดานต่อไม่ได้ (403/451) ให้เปลี่ยน `regions` ใน `vercel.json` เป็น `hkg1` หรือ `hnd1` แล้ว deploy ใหม่
 
 ## โครงสร้าง
 
